@@ -1,0 +1,20 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Datasets stay outside git.
+data/
+
+# Model weights/checkpoints are too large for normal git.
+*.pt
+*.pth
+*.ckpt
+*.onnx
+outputs/checkpoints/
+output/checkpoints/
+outputs*/checkpoints/
+
+# Local/editor artifacts.
+.DS_Store
