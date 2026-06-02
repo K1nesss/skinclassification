@@ -1,12 +1,24 @@
 project:
   name: skinclassification
   seed: 42
-  num_classes: 5
-  class_names: [acne, eczema, dermatitis, pigmentation, others]
+  num_classes: 10
+  class_names:
+    - acne_rosacea
+    - eczema
+    - dermatitis
+    - pigmentation_disorder
+    - vitiligo
+    - nail_psoriasis
+    - psoriasis_lichen_planus
+    - fungal_infection
+    - seborrheic_keratosis_benign_tumor
+    - viral_warts
 
 paths:
   raw_dir: data/raw
-  processed_image_dir: data/processed/images
+  new_dir: data/new
+  pass_dir: data/pass
+  processed_image_dir: data/processed
   interim_dir: data/interim
   manifest: data/interim/split_samples.csv
   outputs_dir: outputs
@@ -24,7 +36,7 @@ data:
   val_ratio: 0.15
   test_ratio: 0.15
   duplicate_policy: first
-  use_sources: [dermnet, skindisnet, mendeley]
+  use_sources: [dermnet, skindisnet, mendeley, scin]
   split_external_sources: []
   max_samples_per_class: null
   downsample_majority:
@@ -36,6 +48,22 @@ data:
     ratio_to_max_non_majority: 2.0
     skip_external_sources: true
   num_workers: 0
+
+data_quality:
+  min_size: 64
+  black_ratio_threshold: 0.35
+  dark_mean_threshold: 35.0
+  dark_ratio_threshold: 0.65
+  bright_mean_threshold: 235.0
+  bright_ratio_threshold: 0.65
+  blur_laplacian_threshold: 18.0
+  mosaic_block_ratio_threshold: 1.9
+  mosaic_boundary_threshold: 7.0
+  lesion_edge_density_threshold: 0.010
+  lesion_saturation_std_threshold: 10.0
+  save_max_side: 0
+  jpeg_quality: 95
+  max_visual_pages_per_reason: null
 
 augmentation:
   random_resized_crop_scale: [0.75, 1.0]

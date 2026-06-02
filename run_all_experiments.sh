@@ -40,11 +40,15 @@ echo "检查并创建 data/outputs 软链接"
 bash scripts/setup_server_storage.sh "$PROJECT_ROOT" "$STORAGE_ROOT"
 
 echo
-echo "[1/8] 准备数据集样本清单"
+echo "[1/8] 构建新十分类数据集、质量清洗、划分 train/val/test"
 if [[ "${SKIP_PREPARE:-0}" == "1" ]]; then
   echo "SKIP_PREPARE=1，跳过数据准备。"
 else
-  "$PYTHON" scripts/prepare_dataset.py --config "$CONFIG"
+  prepare_args=(scripts/build_new_dataset.py --config "$CONFIG")
+  if [[ "${CLEAN_DATASET:-1}" == "1" ]]; then
+    prepare_args+=(--clean)
+  fi
+  "$PYTHON" "${prepare_args[@]}"
 fi
 
 echo

@@ -20,8 +20,9 @@ def _save(fig, path: str | Path) -> None:
 
 def plot_class_distribution(df: pd.DataFrame, output_path: str | Path) -> None:
     setup_plot_style()
-    counts = df["label"].value_counts().reindex(["acne", "eczema", "dermatitis", "pigmentation", "others"])
-    fig, ax = plt.subplots(figsize=(8, 5))
+    labels = sorted(df["label"].dropna().unique().tolist())
+    counts = df["label"].value_counts().reindex(labels, fill_value=0)
+    fig, ax = plt.subplots(figsize=(max(9, len(labels) * 0.9), 5))
     counts.plot(kind="bar", ax=ax, color="#3b82f6")
     ax.set_title("Class Distribution")
     ax.set_ylabel("Images")
@@ -50,7 +51,7 @@ def plot_class_source_heatmap(df: pd.DataFrame, output_path: str | Path) -> None
         aggfunc="count",
         fill_value=0,
     )
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(max(8, len(pivot.columns) * 1.6), max(5, len(pivot) * 0.45)))
     sns.heatmap(pivot, annot=True, fmt=".0f", cmap="YlGnBu", ax=ax)
     ax.set_title("Class by Source Dataset")
     _save(fig, output_path)
@@ -66,7 +67,7 @@ def plot_split_distribution(df: pd.DataFrame, output_path: str | Path) -> None:
         aggfunc="count",
         fill_value=0,
     )
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=(max(9, len(pivot) * 0.9), 5))
     pivot.plot(kind="bar", ax=ax)
     ax.set_title("Train / Validation / Test Distribution")
     ax.set_ylabel("Images")
@@ -91,15 +92,18 @@ def plot_image_size_distribution(df: pd.DataFrame, output_path: str | Path) -> N
 
 def plot_sample_grid(df: pd.DataFrame, output_path: str | Path, n_per_class: int = 9) -> None:
     setup_plot_style()
-    labels = ["acne", "eczema", "dermatitis", "pigmentation", "others"]
+    labels = sorted(df["label"].dropna().unique().tolist())
+    if not labels:
+        return
     fig, axes = plt.subplots(len(labels), n_per_class, figsize=(n_per_class * 1.5, len(labels) * 1.6))
+    axes = pd.Series(axes.flatten() if hasattr(axes, "flatten") else [axes])
     for row_idx, label in enumerate(labels):
         sample = df[df["label"] == label].sample(
             n=min(n_per_class, (df["label"] == label).sum()),
             random_state=42,
         )
         for col_idx in range(n_per_class):
-            ax = axes[row_idx, col_idx]
+            ax = axes.iloc[row_idx * n_per_class + col_idx]
             ax.axis("off")
             if col_idx < len(sample):
                 img = Image.open(sample.iloc[col_idx]["image_path"]).convert("RGB")
@@ -171,10 +175,16 @@ def plot_cleaning_summary(interim_dir: str | Path, output_path: str | Path) -> N
         "duplicate": "Duplicate",
         "invalid_image": "Invalid",
         "too_small": "Too small",
+        "black_occlusion_large": "Black occlusion",
+        "mosaic_or_pixelated": "Mosaic/pixelated",
+        "lesion_not_visible": "Lesion not visible",
+        "overexposed": "Overexposed",
+        "too_dark": "Too dark",
+        "severe_blur": "Severe blur",
     }
     df["status"] = df["status"].map(labels).fillna(df["status"])
-    fig, ax = plt.subplots(figsize=(7, 5))
-    ax.bar(df["status"], df["count"], color=["#10b981", "#f97316", "#ef4444", "#6366f1"][: len(df)])
+    fig, ax = plt.subplots(figsize=(max(8, len(df) * 1.1), 5))
+    ax.bar(df["status"], df["count"], color=sns.color_palette("Set2", n_colors=len(df)))
     ax.set_title("Data Cleaning Summary")
     ax.set_ylabel("Images")
     ax.tick_params(axis="x", rotation=15)

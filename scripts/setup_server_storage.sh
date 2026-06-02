@@ -9,6 +9,8 @@ PROJECT_ROOT="${1:-$(pwd)}"
 STORAGE_ROOT="${2:-${SKIN_STORAGE_ROOT:-/mnt/disk002/skinclassification}}"
 
 mkdir -p "$STORAGE_ROOT/data/raw"
+mkdir -p "$STORAGE_ROOT/data/new"
+mkdir -p "$STORAGE_ROOT/data/pass"
 mkdir -p "$STORAGE_ROOT/data/interim"
 mkdir -p "$STORAGE_ROOT/data/processed"
 mkdir -p "$STORAGE_ROOT/outputs/checkpoints"
