@@ -16,6 +16,7 @@ from src.visualization.plot_metrics_bar import plot_per_class_metrics
 
 @torch.no_grad()
 def predict_loader(model: torch.nn.Module, loader, device: torch.device):
+    model.eval()
     y_true, y_pred, y_prob, rows = [], [], [], []
     start = time.perf_counter()
     n_images = 0
