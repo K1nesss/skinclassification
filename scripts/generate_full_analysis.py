@@ -246,33 +246,6 @@ def plot_model_comparison(cfg: dict, models: list[str], figures: Path) -> None:
     plt.close(fig)
 
 
-def plot_internal_external(cfg: dict, models: list[str], figures: Path) -> None:
-    rows = []
-    for model in models:
-        test = load_metrics(cfg, model, "test")
-        ext = load_metrics(cfg, model, "external_test")
-        if test and ext:
-            rows.append({"model": model, "Internal test": test["macro_f1"], "External test": ext["macro_f1"]})
-    if not rows:
-        return
-    df = pd.DataFrame(rows)
-    setup_plot_style()
-    fig, ax = plt.subplots(figsize=(8, 5))
-    x = np.arange(len(df))
-    width = 0.35
-    ax.bar(x - width / 2, df["Internal test"], width=width, label="Internal test")
-    ax.bar(x + width / 2, df["External test"], width=width, label="External test")
-    ax.set_xticks(x)
-    ax.set_xticklabels(df["model"], rotation=20, ha="right")
-    ax.set_ylim(0, 1)
-    ax.set_title("Internal vs External Macro-F1")
-    ax.grid(axis="y", alpha=0.25)
-    ax.legend()
-    fig.tight_layout()
-    fig.savefig(figures / "23_internal_vs_external_metrics.png", dpi=220)
-    plt.close(fig)
-
-
 def plot_roc_pr(y_true: np.ndarray, y_prob: np.ndarray, class_names: list[str], figures: Path) -> None:
     setup_plot_style()
     y_bin = np.eye(len(class_names))[y_true]
@@ -617,8 +590,6 @@ def write_completion_report(cfg: dict, model: str, figures: Path, gradcam: Path,
         figures / "19_model_radar_chart.png",
         figures / "20_confusion_matrix_internal_raw.png",
         figures / "21_confusion_matrix_internal_normalized.png",
-        figures / "22_confusion_matrix_scin.png",
-        figures / "23_internal_vs_external_metrics.png",
         figures / "24_per_class_metrics.png",
         figures / "26_multiclass_roc_curve.png",
         figures / "27_multiclass_pr_curve.png",
@@ -674,22 +645,12 @@ def main() -> None:
 
     plot_named_training_curves(cfg, models, figures)
     plot_model_comparison(cfg, models, figures)
-    plot_internal_external(cfg, models, figures)
 
     metrics = load_metrics(cfg, model_name, args.split)
     if metrics:
         plot_confusion_matrix(metrics["confusion_matrix"], class_names, figures / "20_confusion_matrix_internal_raw.png", normalize=False)
         plot_confusion_matrix(metrics["confusion_matrix"], class_names, figures / "21_confusion_matrix_internal_normalized.png", normalize=True)
         plot_per_class_metrics(metrics["per_class"], figures / "24_per_class_metrics.png")
-    external_metrics = load_metrics(cfg, model_name, "external_test")
-    if external_metrics:
-        plot_confusion_matrix(
-            external_metrics["confusion_matrix"],
-            class_names,
-            figures / "22_confusion_matrix_scin.png",
-            normalize=True,
-        )
-
     plot_roc_pr(outputs["y_true"], outputs["y_prob"], class_names, figures)
     plot_error_and_calibration(outputs, class_names, figures, error_cases, args.error_samples)
     generate_gradcam_artifacts(

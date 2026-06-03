@@ -59,31 +59,6 @@ echo
 echo "[3/8] 生成数据集统计报告"
 "$PYTHON" scripts/make_dataset_report.py --config "$CONFIG"
 
-has_split() {
-  "$PYTHON" - "$CONFIG" "$1" <<'PY'
-import sys
-import pandas as pd
-import yaml
-
-config_path, split = sys.argv[1], sys.argv[2]
-with open(config_path, "r", encoding="utf-8") as f:
-    cfg = yaml.safe_load(f)
-df = pd.read_csv(cfg["paths"]["manifest"])
-raise SystemExit(0 if (df["split"] == split).any() else 1)
-PY
-}
-
-cleanup_stale_external_outputs() {
-  find outputs/reports outputs/figures -type f -name '*external_test*' -delete 2>/dev/null || true
-}
-
-if has_split external_test; then
-  echo "检测到 external_test 样本，后续将生成外部测试结果。"
-else
-  echo "未检测到 external_test 样本，将跳过外部测试并清理旧的 external_test 结果文件。"
-  cleanup_stale_external_outputs
-fi
-
 batch_size_for_model() {
   case "$1" in
     convnext_base) echo "${BATCH_SIZE_CONVNEXT_BASE:-16}" ;;
@@ -122,13 +97,6 @@ for model in "${MODELS_ARRAY[@]}"; do
   echo
   echo "评估内部测试集：$checkpoint"
   "$PYTHON" evaluate.py --config "$CONFIG" --checkpoint "$checkpoint" --split test --batch-size "$batch_size"
-  if has_split external_test; then
-    echo
-    echo "评估外部测试集：$checkpoint"
-    "$PYTHON" evaluate.py --config "$CONFIG" --checkpoint "$checkpoint" --split external_test --batch-size "$batch_size"
-  else
-    echo "未检测到 external_test 样本，跳过外部测试。"
-  fi
 done
 
 echo

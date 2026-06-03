@@ -60,7 +60,7 @@ def plot_class_source_heatmap(df: pd.DataFrame, output_path: str | Path) -> None
 def plot_split_distribution(df: pd.DataFrame, output_path: str | Path) -> None:
     setup_plot_style()
     pivot = pd.pivot_table(
-        df[df["split"] != "external_test"],
+        df,
         index="label",
         columns="split",
         values="image_path",
@@ -142,7 +142,7 @@ def plot_source_sample_grid(df: pd.DataFrame, output_path: str | Path, n_per_sou
 
 def plot_split_sample_grid(df: pd.DataFrame, output_path: str | Path, n_per_split: int = 6) -> None:
     setup_plot_style()
-    splits = [s for s in ["train", "val", "test", "external_test"] if (df["split"] == s).any()]
+    splits = [s for s in ["train", "val", "test"] if (df["split"] == s).any()]
     if not splits:
         return
     fig, axes = plt.subplots(len(splits), n_per_split, figsize=(n_per_split * 1.6, len(splits) * 1.8))
@@ -196,7 +196,7 @@ def generate_dataset_figures(manifest_csv: str | Path, figures_dir: str | Path) 
     df = pd.read_csv(manifest_csv)
     figures_dir = Path(figures_dir)
     plot_class_distribution(df, figures_dir / "01_class_distribution_bar.png")
-    plot_source_distribution(df[df["split"] != "external_test"], figures_dir / "02_source_dataset_distribution.png")
+    plot_source_distribution(df, figures_dir / "02_source_dataset_distribution.png")
     plot_class_source_heatmap(df, figures_dir / "03_class_source_heatmap.png")
     plot_split_distribution(df, figures_dir / "04_split_distribution.png")
     plot_image_size_distribution(df, figures_dir / "05_image_size_distribution.png")

@@ -23,3 +23,7 @@ outputs*/checkpoints/
 
 # Local/editor artifacts.
 .DS_Store
+.codex/
+v1/
+v2/
+*_samples.png

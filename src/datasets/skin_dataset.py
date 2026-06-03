@@ -30,7 +30,7 @@ def _load_manifest(cfg: dict) -> pd.DataFrame:
     manifest_path = Path(cfg["paths"]["manifest"])
     if not manifest_path.exists():
         raise FileNotFoundError(
-            f"Manifest not found: {manifest_path}. Run scripts/prepare_dataset.py first."
+            f"Manifest not found: {manifest_path}. Run scripts/build_new_dataset.py first."
         )
     return pd.read_csv(manifest_path)
 
@@ -104,4 +104,3 @@ def build_eval_loader(cfg: dict, split: str) -> DataLoader:
         num_workers=int(cfg["data"].get("num_workers", 0)),
         pin_memory=True,
     )
-

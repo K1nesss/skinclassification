@@ -32,21 +32,8 @@ paths:
 
 data:
   image_size: 224
-  min_size: 64
   val_ratio: 0.15
   test_ratio: 0.15
-  duplicate_policy: first
-  use_sources: [dermnet, skindisnet, mendeley, scin]
-  split_external_sources: []
-  max_samples_per_class: null
-  downsample_majority:
-    enabled: false
-    label: others
-    split: train
-    strategy: max_per_source
-    max_per_source: 3000
-    ratio_to_max_non_majority: 2.0
-    skip_external_sources: true
   num_workers: 0
 
 data_quality:

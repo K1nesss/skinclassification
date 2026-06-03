@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="评估训练好的模型 checkpoint。")
     parser.add_argument("--config", default="config.yaml")
     parser.add_argument("--checkpoint", required=True)
-    parser.add_argument("--split", default="test", choices=["train", "val", "test", "external_test"])
+    parser.add_argument("--split", default="test", choices=["train", "val", "test"])
     parser.add_argument("--device", default=None)
     parser.add_argument("--batch-size", type=int, default=None)
     return parser.parse_args()
@@ -42,13 +42,7 @@ def main() -> None:
         print(f"CUDA 显卡：{torch.cuda.get_device_name(device)}")
     print(f"批大小：{cfg['training']['batch_size']}")
     print(f"样本清单：{Path(cfg['paths']['manifest']).resolve()}")
-    try:
-        loader = build_eval_loader(cfg, split=args.split)
-    except ValueError as exc:
-        if args.split == "external_test" and "No samples found" in str(exc):
-            print("未检测到 external_test 样本，跳过外部测试评估。")
-            return
-        raise
+    loader = build_eval_loader(cfg, split=args.split)
     print(f"评估样本数：{len(loader.dataset)}，batch 数：{len(loader)}")
     result_path = Path(cfg["paths"]["reports_dir"]) / f"{Path(args.checkpoint).stem}_{args.split}_metrics.json"
     evaluate_checkpoint(cfg, args.checkpoint, loader, device, result_path)

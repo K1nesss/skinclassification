@@ -22,12 +22,25 @@ data/raw/Mendeley Skin Disease Classification Dataset/*.zip
 data/raw/SCIN/...
 ```
 
-SCIN is optional during local development. When present, it is always treated as `external_test`.
-
-Build the cleaned manifest:
+The current project uses a rebuilt 10-class dataset. `data/raw/` is only the source pool.
+The build script extracts the selected raw labels, filters low-quality images, writes clean
+images to `data/new/`, rejected images to `data/pass/`, and split train/val/test images to
+`data/processed/`.
 
 ```powershell
-& "$env:USERPROFILE\anaconda3\envs\pytorch\python.exe" scripts/prepare_dataset.py --config config.yaml
+& "$env:USERPROFILE\anaconda3\envs\pytorch\python.exe" scripts/build_new_dataset.py --config config.yaml --clean
+```
+
+Main output files:
+
+```text
+data/new/manifest.csv
+data/pass/rejected_manifest.csv
+data/pass/quality_report.csv
+data/pass/quality_summary.csv
+data/pass/quality_report.md
+data/pass/quality_figures/
+data/interim/split_samples.csv
 ```
 
 ## Training
@@ -44,6 +57,8 @@ Full model names:
 resnet18
 densenet121
 efficientnet_b0
+mobilenet_v3_small
+convnext_tiny
 convnext_base
 swin_s
 swin_b
@@ -55,7 +70,6 @@ Formal runs should be done on the 4090 server for `convnext_base` and `swin_s` o
 
 ```powershell
 & "$env:USERPROFILE\anaconda3\envs\pytorch\python.exe" evaluate.py --config config.yaml --checkpoint outputs/checkpoints/densenet121_best.pt --split test
-& "$env:USERPROFILE\anaconda3\envs\pytorch\python.exe" evaluate.py --config config.yaml --checkpoint outputs/checkpoints/densenet121_best.pt --split external_test
 ```
 
 ## Demo
@@ -81,12 +95,12 @@ conda activate pytorch
 bash run_all_experiments.sh
 ```
 
-The script creates `data` and `outputs` symlinks to `/mnt/disk002/skinclassification/`, prepares the dataset, generates dataset figures, trains the full model set, and evaluates each checkpoint on `test` plus `external_test` when SCIN is present.
+The script creates `data` and `outputs` symlinks to `/mnt/disk002/skinclassification/`, builds the new 10-class cleaned dataset, generates dataset figures, trains the full model set, and evaluates each checkpoint on `test`.
 
 Default server model set:
 
 ```text
-resnet18 densenet121 efficientnet_b0 convnext_base swin_b
+resnet18 densenet121 efficientnet_b0 mobilenet_v3_small convnext_tiny convnext_base swin_s swin_b
 ```
 
 Override examples:
