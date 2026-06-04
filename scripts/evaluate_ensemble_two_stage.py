@@ -5,6 +5,7 @@ import itertools
 import sys
 import time
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import torch
@@ -45,28 +46,53 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weight-step", type=float, default=0.05)
     parser.add_argument("--gate-mode", choices=["pred", "mass", "pred_or_mass"], default="pred")
     parser.add_argument("--gate-threshold", type=float, default=0.45)
+    parser.add_argument(
+        "--refine-source-datasets",
+        nargs="+",
+        default=None,
+        help="Optionally run the specialist only for these source_dataset values.",
+    )
     parser.add_argument("--output-name", default=None)
     return parser.parse_args()
 
 
+def metadata_rows(meta: dict[str, Any], batch_size: int) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for idx in range(batch_size):
+        row: dict[str, Any] = {}
+        for key, value in meta.items():
+            if torch.is_tensor(value):
+                item = value[idx].item() if value.ndim > 0 else value.item()
+            elif isinstance(value, (list, tuple)):
+                item = value[idx]
+            else:
+                item = value
+            row[key] = item
+        rows.append(row)
+    return rows
+
+
 @torch.no_grad()
-def collect_probs(checkpoint: str, cfg: dict, split: str, device: torch.device, num_classes: int):
+def collect_probs(checkpoint: str, cfg: dict, split: str, device: torch.device, num_classes: int, include_rows: bool = False):
     loader = build_eval_loader(cfg, split)
     model = load_checkpoint_model(checkpoint, num_classes, device)
     y_true: list[int] = []
     probs: list[np.ndarray] = []
+    rows: list[dict[str, Any]] = []
     start = time.perf_counter()
     n_images = 0
-    for images, labels, _ in tqdm(loader, desc=f"Predicting {Path(checkpoint).stem} {split}"):
+    for images, labels, meta in tqdm(loader, desc=f"Predicting {Path(checkpoint).stem} {split}"):
         images = images.to(device, non_blocking=True)
         batch_probs = torch.softmax(model(images), dim=1).cpu().numpy()
         probs.append(batch_probs)
         y_true.extend(labels.numpy().astype(int).tolist())
+        if include_rows:
+            rows.extend(metadata_rows(meta, images.size(0)))
         n_images += images.size(0)
     del model
     if device.type == "cuda":
         torch.cuda.empty_cache()
-    return np.asarray(y_true, dtype=np.int64), np.vstack(probs), (time.perf_counter() - start) / max(1, n_images)
+    return np.asarray(y_true, dtype=np.int64), np.vstack(probs), (time.perf_counter() - start) / max(1, n_images), rows
 
 
 def normalize_weights(weights: list[float]) -> np.ndarray:
@@ -132,6 +158,8 @@ def apply_specialist(
     other_class_name: str | None,
     gate_mode: str,
     gate_threshold: float,
+    rows: list[dict[str, Any]] | None = None,
+    refine_source_datasets: list[str] | None = None,
 ) -> tuple[np.ndarray, np.ndarray, dict]:
     specialist_ids = [class_names.index(name) for name in specialist_classes]
     output_names = list(specialist_classes)
@@ -147,7 +175,10 @@ def apply_specialist(
     final_preds = base_preds.copy()
     refined_count = 0
     changed_count = 0
+    refine_sources = set(refine_source_datasets or [])
     for idx, base_pred in enumerate(base_preds.tolist()):
+        if refine_sources and rows is not None and rows[idx].get("source_dataset") not in refine_sources:
+            continue
         if not should_refine(base_pred, base_probs[idx], specialist_ids, gate_mode, gate_threshold):
             continue
         specialist_output = int(specialist_probs[idx].argmax())
@@ -206,7 +237,7 @@ def main() -> None:
         val_probs = []
         val_true_ref = None
         for checkpoint in base_checkpoints:
-            y_true, probs, _ = collect_probs(checkpoint, cfg, "val", device, base_num_classes)
+            y_true, probs, _, _ = collect_probs(checkpoint, cfg, "val", device, base_num_classes)
             if val_true_ref is None:
                 val_true_ref = y_true
             elif not np.array_equal(val_true_ref, y_true):
@@ -223,18 +254,27 @@ def main() -> None:
 
     split_probs = []
     true_ref = None
+    rows_ref: list[dict[str, Any]] | None = None
     seconds_per_image = 0.0
-    for checkpoint in base_checkpoints:
-        y_true, probs, seconds = collect_probs(checkpoint, cfg, args.split, device, base_num_classes)
+    for idx, checkpoint in enumerate(base_checkpoints):
+        y_true, probs, seconds, rows = collect_probs(
+            checkpoint,
+            cfg,
+            args.split,
+            device,
+            base_num_classes,
+            include_rows=(idx == 0),
+        )
         if true_ref is None:
             true_ref = y_true
+            rows_ref = rows
         elif not np.array_equal(true_ref, y_true):
             raise ValueError("Evaluation loaders produced different label order.")
         split_probs.append(probs)
         seconds_per_image += seconds
-    assert true_ref is not None
+    assert true_ref is not None and rows_ref is not None
 
-    _, specialist_probs, specialist_seconds = collect_probs(
+    _, specialist_probs, specialist_seconds, _ = collect_probs(
         args.specialist_checkpoint,
         cfg,
         args.split,
@@ -250,6 +290,8 @@ def main() -> None:
         args.other_class_name,
         args.gate_mode,
         float(args.gate_threshold),
+        rows=rows_ref,
+        refine_source_datasets=args.refine_source_datasets,
     )
     metrics = compute_classification_metrics(true_ref, final_preds, final_probs, class_names)
     metrics["seconds_per_image"] = float(seconds_per_image + specialist_seconds)
@@ -265,6 +307,7 @@ def main() -> None:
         "other_class_name": args.other_class_name,
         "gate_mode": args.gate_mode,
         "gate_threshold": float(args.gate_threshold),
+        "refine_source_datasets": args.refine_source_datasets,
         "total_count": int(len(true_ref)),
         **{key: int(value) for key, value in stage_info.items()},
     }

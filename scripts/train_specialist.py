@@ -35,6 +35,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-name", default=None)
     parser.add_argument("--classes", nargs="+", default=DEFAULT_SPECIALIST_CLASSES)
     parser.add_argument(
+        "--source-datasets",
+        nargs="+",
+        default=None,
+        help="Optionally restrict specialist training/evaluation rows to these source_dataset values.",
+    )
+    parser.add_argument(
         "--other-class-name",
         default=None,
         help="Map all labels outside --classes to this extra specialist class.",
@@ -97,8 +103,13 @@ def build_specialist_dataloaders(
     classes: list[str],
     balance_strategy: str,
     other_class_name: str | None = None,
+    source_datasets: list[str] | None = None,
 ):
     manifest = pd.read_csv(cfg["paths"]["manifest"])
+    if source_datasets:
+        manifest = manifest[manifest["source_dataset"].isin(source_datasets)].copy()
+        if manifest.empty:
+            raise ValueError(f"No samples found for source datasets: {source_datasets}")
     batch_size = int(cfg["training"]["batch_size"])
     num_workers = int(cfg["data"].get("num_workers", 0))
 
@@ -109,14 +120,14 @@ def build_specialist_dataloaders(
     labels = train_df["label_id"].astype(int).tolist()
     sampler = None
     if balance_strategy == "weighted_sampler":
-        sampler = make_weighted_sampler(labels, len(classes))
+        sampler = make_weighted_sampler(labels, len(classes) + (1 if other_class_name else 0))
 
     loaders = {
         "train": make_loader(train_df, cfg, "train", batch_size, num_workers, sampler=sampler),
         "val": make_loader(val_df, cfg, "val", batch_size, num_workers),
         "test": make_loader(test_df, cfg, "test", batch_size, num_workers),
     }
-    return loaders, make_class_weights(labels, len(classes))
+    return loaders, make_class_weights(labels, len(classes) + (1 if other_class_name else 0))
 
 
 def main() -> None:
@@ -159,6 +170,8 @@ def main() -> None:
     print(f"模型：{cfg['training']['model']}")
     print(f"运行名称：{cfg['training']['run_name']}")
     print(f"专门类别：{', '.join(specialist_classes)}")
+    if args.source_datasets:
+        print(f"限定来源数据集：{', '.join(args.source_datasets)}")
     print(f"运行设备：{device}")
     if device.type == "cuda":
         print(f"CUDA 显卡：{torch.cuda.get_device_name(device)}")
@@ -173,6 +186,7 @@ def main() -> None:
         list(args.classes),
         args.balance_strategy,
         args.other_class_name,
+        args.source_datasets,
     )
     model = build_model(
         cfg["training"]["model"],
