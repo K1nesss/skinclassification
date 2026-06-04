@@ -25,7 +25,6 @@ DEFAULT_SPECIALIST_CLASSES = [
     "eczema",
     "dermatitis",
     "psoriasis_lichen_planus",
-    "fungal_infection",
 ]
 
 
@@ -36,6 +35,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--specialist-checkpoint", required=True)
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
     parser.add_argument("--classes", nargs="+", default=DEFAULT_SPECIALIST_CLASSES)
+    parser.add_argument(
+        "--other-class-name",
+        default=None,
+        help="Name of specialist output that means keep the base-model prediction.",
+    )
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument(
         "--gate-mode",
@@ -72,13 +76,20 @@ def evaluate_two_stage(
     device: torch.device,
     class_names: list[str],
     specialist_classes: list[str],
+    other_class_name: str | None,
     gate_mode: str,
     gate_threshold: float,
 ) -> dict:
     base_model.eval()
     specialist_model.eval()
     specialist_ids = [class_names.index(name) for name in specialist_classes]
-    specialist_to_global = np.asarray(specialist_ids, dtype=np.int64)
+    output_names = list(specialist_classes)
+    if other_class_name:
+        output_names.append(other_class_name)
+    specialist_to_global = {
+        idx: (class_names.index(name) if name in class_names else None)
+        for idx, name in enumerate(output_names)
+    }
 
     y_true: list[int] = []
     y_pred: list[int] = []
@@ -104,10 +115,16 @@ def evaluate_two_stage(
             refine_tensor = images[refine_indices]
             specialist_probs = torch.softmax(specialist_model(refine_tensor), dim=1).cpu().numpy()
             for local_idx, sample_idx in enumerate(refine_indices):
-                specialist_pred = int(specialist_to_global[specialist_probs[local_idx].argmax()])
+                specialist_output = int(specialist_probs[local_idx].argmax())
+                specialist_pred = specialist_to_global[specialist_output]
+                if specialist_pred is None:
+                    refined_count += 1
+                    continue
                 cluster_mass = float(base_probs[sample_idx, specialist_ids].sum())
                 final_preds[sample_idx] = specialist_pred
-                final_probs[sample_idx, specialist_ids] = specialist_probs[local_idx] * max(cluster_mass, 1e-6)
+                final_probs[sample_idx, specialist_ids] = (
+                    specialist_probs[local_idx, : len(specialist_ids)] * max(cluster_mass, 1e-6)
+                )
                 refined_count += 1
                 if specialist_pred != int(base_preds[sample_idx]):
                     changed_count += 1
@@ -126,6 +143,7 @@ def evaluate_two_stage(
     metrics["seconds_per_image"] = float((time.perf_counter() - start) / max(1, n_images))
     metrics["two_stage"] = {
         "specialist_classes": specialist_classes,
+        "other_class_name": other_class_name,
         "gate_mode": gate_mode,
         "gate_threshold": gate_threshold,
         "refined_count": int(refined_count),
@@ -173,7 +191,8 @@ def main() -> None:
 
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     base_model = load_checkpoint_model(args.base_checkpoint, int(cfg["project"]["num_classes"]), device)
-    specialist_model = load_checkpoint_model(args.specialist_checkpoint, len(args.classes), device)
+    specialist_num_classes = len(args.classes) + (1 if args.other_class_name else 0)
+    specialist_model = load_checkpoint_model(args.specialist_checkpoint, specialist_num_classes, device)
     loader = build_eval_loader(cfg, args.split)
 
     metrics = evaluate_two_stage(
@@ -183,6 +202,7 @@ def main() -> None:
         device=device,
         class_names=class_names,
         specialist_classes=list(args.classes),
+        other_class_name=args.other_class_name,
         gate_mode=args.gate_mode,
         gate_threshold=float(args.gate_threshold),
     )
