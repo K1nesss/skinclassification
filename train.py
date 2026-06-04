@@ -44,6 +44,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--limit-train-batches", type=int, default=None)
     parser.add_argument("--limit-val-batches", type=int, default=None)
+    parser.add_argument(
+        "--grad-accum-steps",
+        type=int,
+        default=None,
+        help="Accumulate gradients for this many mini-batches before each optimizer step.",
+    )
     return parser.parse_args()
 
 
@@ -67,6 +73,8 @@ def main() -> None:
         cfg["training"]["loss_class_weights"] = True
     if args.no_loss_class_weights:
         cfg["training"]["loss_class_weights"] = False
+    if args.grad_accum_steps:
+        cfg["training"]["gradient_accumulation_steps"] = args.grad_accum_steps
 
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     print_section("训练配置")
@@ -85,6 +93,7 @@ def main() -> None:
         print(f"重点类别：{', '.join(cfg['training'].get('hard_classes', []))}")
         print(f"重点类别采样倍率：{cfg['training'].get('hard_class_multiplier', 1.5)}")
     print(f"是否按类别加权损失：{cfg['training'].get('loss_class_weights', False)}")
+    print(f"梯度累积步数：{cfg['training'].get('gradient_accumulation_steps', 1)}")
     print(f"是否启用 AMP 混合精度：{cfg['training'].get('amp', True)}")
     print(f"样本清单：{Path(cfg['paths']['manifest']).resolve()}")
 

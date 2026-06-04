@@ -27,22 +27,30 @@ def _run_train_epoch(
     device,
     scaler,
     use_amp: bool,
+    gradient_accumulation_steps: int = 1,
     limit_batches: int | None = None,
 ) -> float:
     model.train()
     total_loss, total_count = 0.0, 0
+    accum_steps = max(1, int(gradient_accumulation_steps))
+    optimizer.zero_grad(set_to_none=True)
     for batch_idx, (images, labels, _) in enumerate(tqdm(loader, desc="Training")):
         if limit_batches is not None and batch_idx >= limit_batches:
             break
         images = images.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True)
-        optimizer.zero_grad(set_to_none=True)
         with torch.amp.autocast(device_type=device.type, enabled=use_amp):
             logits = model(images)
             loss = criterion(logits, labels)
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+            scaled_loss = loss / accum_steps
+        scaler.scale(scaled_loss).backward()
+        is_update_step = (batch_idx + 1) % accum_steps == 0
+        is_last_limited_batch = limit_batches is not None and (batch_idx + 1) >= limit_batches
+        is_last_batch = (batch_idx + 1) >= len(loader)
+        if is_update_step or is_last_limited_batch or is_last_batch:
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad(set_to_none=True)
         total_loss += float(loss.item()) * images.size(0)
         total_count += images.size(0)
     return total_loss / max(1, total_count)
@@ -131,6 +139,7 @@ def train_model(
     print(f"label smoothing：{cfg['training'].get('label_smoothing', 0.0)}")
     if str(cfg["training"].get("loss_type", "cross_entropy")) == "focal":
         print(f"focal gamma：{cfg['training'].get('focal_gamma', 1.5)}")
+    print(f"梯度累积步数：{cfg['training'].get('gradient_accumulation_steps', 1)}")
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(cfg["training"]["learning_rate"]),
@@ -166,6 +175,7 @@ def train_model(
             device,
             scaler,
             use_amp,
+            gradient_accumulation_steps=int(cfg["training"].get("gradient_accumulation_steps", 1)),
             limit_batches=limit_train_batches,
         )
         scheduler.step()
