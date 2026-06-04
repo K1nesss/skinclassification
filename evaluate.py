@@ -23,6 +23,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
     parser.add_argument("--device", default=None)
     parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--image-size", type=int, default=None)
     return parser.parse_args()
 
 
@@ -32,6 +33,8 @@ def main() -> None:
     ensure_project_dirs(cfg)
     if args.batch_size:
         cfg["training"]["batch_size"] = args.batch_size
+    if args.image_size:
+        cfg["data"]["image_size"] = args.image_size
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     print_section("评估配置")
     print(f"配置文件：{args.config}")
@@ -41,6 +44,7 @@ def main() -> None:
     if device.type == "cuda":
         print(f"CUDA 显卡：{torch.cuda.get_device_name(device)}")
     print(f"批大小：{cfg['training']['batch_size']}")
+    print(f"输入尺寸：{cfg['data']['image_size']}")
     print(f"样本清单：{Path(cfg['paths']['manifest']).resolve()}")
     loader = build_eval_loader(cfg, split=args.split)
     print(f"评估样本数：{len(loader.dataset)}，batch 数：{len(loader)}")
