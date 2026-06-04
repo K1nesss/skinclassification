@@ -127,7 +127,8 @@ def print_summary(metrics: dict, weights: np.ndarray, checkpoints: list[str]) ->
     print(f"Balanced Accuracy：{metrics['balanced_accuracy']:.4f}")
     print(f"Macro-F1：{metrics['macro_f1']:.4f}")
     print(f"ECE 校准误差：{metrics['ece']:.4f}")
-    print(f"单张图片平均推理时间：{metrics['seconds_per_image']:.6f} 秒")
+    if "seconds_per_image" in metrics:
+        print(f"单张图片平均推理时间：{metrics['seconds_per_image']:.6f} 秒")
     print("\n每类指标：")
     for label, item in metrics["per_class"].items():
         print(
