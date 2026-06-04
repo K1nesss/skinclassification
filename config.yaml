@@ -34,7 +34,7 @@ data:
   image_size: 384
   val_ratio: 0.15
   test_ratio: 0.15
-  num_workers: 0
+  num_workers: 8
 
 data_quality:
   min_size: 64
@@ -53,16 +53,16 @@ data_quality:
   max_visual_pages_per_reason: null
 
 augmentation:
-  random_resized_crop_scale: [0.75, 1.0]
+  random_resized_crop_scale: [0.88, 1.0]
   horizontal_flip_p: 0.5
   color_jitter:
-    brightness: 0.18
-    contrast: 0.18
-    saturation: 0.12
-    hue: 0.03
-  random_rotation_degrees: 12
-  random_erasing_p: 0.15
-  background_perturb_p: 0.25
+    brightness: 0.10
+    contrast: 0.10
+    saturation: 0.08
+    hue: 0.015
+  random_rotation_degrees: 8
+  random_erasing_p: 0.05
+  background_perturb_p: 0.10
 
 training:
   model: densenet121
@@ -76,7 +76,10 @@ training:
     - eczema
     - dermatitis
     - psoriasis_lichen_planus
-  hard_class_multiplier: 1.5
+  hard_class_multiplier: 1.2
+  loss_type: focal
+  focal_gamma: 1.5
+  label_smoothing: 0.05
   loss_class_weights: false
   scheduler: cosine
   early_stopping_patience: 8

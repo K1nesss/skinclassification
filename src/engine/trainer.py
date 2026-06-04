@@ -5,6 +5,7 @@ from pathlib import Path
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from tqdm import tqdm
 
 from src.engine.evaluator import evaluate_model
@@ -55,6 +56,47 @@ def _write_history(path: Path, history: list[dict]) -> None:
         writer.writerows(history)
 
 
+class FocalLoss(nn.Module):
+    def __init__(
+        self,
+        gamma: float = 1.5,
+        weight: torch.Tensor | None = None,
+        label_smoothing: float = 0.0,
+    ) -> None:
+        super().__init__()
+        self.gamma = float(gamma)
+        self.register_buffer("weight", weight if weight is not None else None)
+        self.label_smoothing = float(label_smoothing)
+
+    def forward(self, logits: torch.Tensor, labels: torch.Tensor) -> torch.Tensor:
+        ce = F.cross_entropy(
+            logits,
+            labels,
+            weight=self.weight,
+            reduction="none",
+            label_smoothing=self.label_smoothing,
+        )
+        pt = torch.exp(-ce)
+        return (((1.0 - pt) ** self.gamma) * ce).mean()
+
+
+def build_criterion(cfg: dict, class_weights: torch.Tensor, device: torch.device) -> nn.Module:
+    weight = None
+    if bool(cfg["training"].get("loss_class_weights", False)):
+        weight = class_weights.to(device)
+    label_smoothing = float(cfg["training"].get("label_smoothing", 0.0))
+    loss_type = str(cfg["training"].get("loss_type", "cross_entropy"))
+    if loss_type == "focal":
+        return FocalLoss(
+            gamma=float(cfg["training"].get("focal_gamma", 1.5)),
+            weight=weight,
+            label_smoothing=label_smoothing,
+        )
+    if loss_type != "cross_entropy":
+        raise ValueError(f"Unsupported loss_type: {loss_type}")
+    return nn.CrossEntropyLoss(weight=weight, label_smoothing=label_smoothing)
+
+
 def train_model(
     cfg,
     model,
@@ -81,13 +123,14 @@ def train_model(
             for label, count in counts.items():
                 print(f"  {label}: {int(count)}")
 
-    weight = None
-    if bool(cfg["training"].get("loss_class_weights", False)):
-        weight = class_weights.to(device)
     print("类别权重（用于采样/可选损失加权）：")
     for name, value in zip(class_names, class_weights.tolist()):
         print(f"  {name}: {value:.4f}")
-    criterion = nn.CrossEntropyLoss(weight=weight)
+    criterion = build_criterion(cfg, class_weights, device)
+    print(f"损失函数：{cfg['training'].get('loss_type', 'cross_entropy')}")
+    print(f"label smoothing：{cfg['training'].get('label_smoothing', 0.0)}")
+    if str(cfg["training"].get("loss_type", "cross_entropy")) == "focal":
+        print(f"focal gamma：{cfg['training'].get('focal_gamma', 1.5)}")
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=float(cfg["training"]["learning_rate"]),
