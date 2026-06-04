@@ -24,6 +24,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=None)
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--image-size", type=int, default=None)
+    parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--device", default=None)
     parser.add_argument("--run-name", default=None, help="Optional run id used for logs/checkpoints.")
     parser.add_argument(
@@ -50,6 +52,10 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Accumulate gradients for this many mini-batches before each optimizer step.",
     )
+    parser.add_argument("--loss-type", choices=["cross_entropy", "focal"], default=None)
+    parser.add_argument("--label-smoothing", type=float, default=None)
+    parser.add_argument("--focal-gamma", type=float, default=None)
+    parser.add_argument("--hard-class-multiplier", type=float, default=None)
     return parser.parse_args()
 
 
@@ -65,6 +71,10 @@ def main() -> None:
         cfg["training"]["epochs"] = args.epochs
     if args.batch_size:
         cfg["training"]["batch_size"] = args.batch_size
+    if args.image_size:
+        cfg["data"]["image_size"] = args.image_size
+    if args.learning_rate:
+        cfg["training"]["learning_rate"] = args.learning_rate
     if args.run_name:
         cfg["training"]["run_name"] = args.run_name
     if args.balance_strategy:
@@ -75,6 +85,14 @@ def main() -> None:
         cfg["training"]["loss_class_weights"] = False
     if args.grad_accum_steps:
         cfg["training"]["gradient_accumulation_steps"] = args.grad_accum_steps
+    if args.loss_type:
+        cfg["training"]["loss_type"] = args.loss_type
+    if args.label_smoothing is not None:
+        cfg["training"]["label_smoothing"] = args.label_smoothing
+    if args.focal_gamma is not None:
+        cfg["training"]["focal_gamma"] = args.focal_gamma
+    if args.hard_class_multiplier is not None:
+        cfg["training"]["hard_class_multiplier"] = args.hard_class_multiplier
 
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     print_section("训练配置")
