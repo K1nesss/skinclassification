@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 import torch
 from tqdm import tqdm
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.datasets.skin_dataset import build_eval_loader
 from src.models.build_model import load_checkpoint_model
