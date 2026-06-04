@@ -51,6 +51,16 @@ Smoke run:
 & "$env:USERPROFILE\anaconda3\envs\pytorch\python.exe" train.py --config config.yaml --model resnet18 --epochs 1 --limit-train-batches 2 --limit-val-batches 2
 ```
 
+The default training setup uses 384px inputs and a hard class-aware sampler. The
+sampler keeps inverse-frequency class balancing, then gives extra sampling weight
+to the currently most confused classes:
+
+```text
+eczema
+dermatitis
+psoriasis_lichen_planus
+```
+
 Full model names:
 
 ```text
@@ -109,6 +119,12 @@ Override examples:
 MODELS="resnet18 densenet121 efficientnet_b0 convnext_base swin_s" bash run_all_experiments.sh
 EPOCHS=5 bash run_all_experiments.sh
 BATCH_SIZE_SWIN_B=8 bash run_all_experiments.sh
+```
+
+Run only the strongest baseline with the 384px hard-class sampler:
+
+```bash
+SKIP_PREPARE=1 MODELS="convnext_base" RUN_BALANCE_ABLATION=0 RUN_FULL_ANALYSIS=0 bash run_all_experiments.sh
 ```
 
 If `data` or `outputs` already exists in the server code directory and you want to move it to the large disk before linking:

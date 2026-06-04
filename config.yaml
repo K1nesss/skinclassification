@@ -31,7 +31,7 @@ paths:
   reports_dir: outputs/reports
 
 data:
-  image_size: 224
+  image_size: 384
   val_ratio: 0.15
   test_ratio: 0.15
   num_workers: 0
@@ -67,11 +67,16 @@ augmentation:
 training:
   model: densenet121
   pretrained: true
-  batch_size: 32
+  batch_size: 16
   epochs: 30
   learning_rate: 0.0001
   weight_decay: 0.01
-  balance_strategy: weighted_sampler
+  balance_strategy: class_aware_sampler
+  hard_classes:
+    - eczema
+    - dermatitis
+    - psoriasis_lichen_planus
+  hard_class_multiplier: 1.5
   loss_class_weights: false
   scheduler: cosine
   early_stopping_patience: 8

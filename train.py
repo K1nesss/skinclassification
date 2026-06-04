@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--run-name", default=None, help="Optional run id used for logs/checkpoints.")
     parser.add_argument(
         "--balance-strategy",
-        choices=["none", "weighted_sampler"],
+        choices=["none", "weighted_sampler", "class_aware_sampler"],
         default=None,
         help="Override class balance strategy.",
     )
@@ -77,9 +77,13 @@ def main() -> None:
         print(f"CUDA 显卡：{torch.cuda.get_device_name(device)}")
     print(f"训练轮数：{cfg['training']['epochs']}")
     print(f"批大小：{cfg['training']['batch_size']}")
+    print(f"输入尺寸：{cfg['data']['image_size']}")
     print(f"学习率：{cfg['training']['learning_rate']}")
     print(f"权重衰减：{cfg['training']['weight_decay']}")
     print(f"类别平衡策略：{cfg['training']['balance_strategy']}")
+    if cfg["training"].get("balance_strategy") == "class_aware_sampler":
+        print(f"重点类别：{', '.join(cfg['training'].get('hard_classes', []))}")
+        print(f"重点类别采样倍率：{cfg['training'].get('hard_class_multiplier', 1.5)}")
     print(f"是否按类别加权损失：{cfg['training'].get('loss_class_weights', False)}")
     print(f"是否启用 AMP 混合精度：{cfg['training'].get('amp', True)}")
     print(f"样本清单：{Path(cfg['paths']['manifest']).resolve()}")

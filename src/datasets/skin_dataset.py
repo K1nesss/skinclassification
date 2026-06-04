@@ -6,7 +6,11 @@ import pandas as pd
 from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
-from src.datasets.class_balance import make_class_weights, make_weighted_sampler
+from src.datasets.class_balance import (
+    make_class_aware_sampler,
+    make_class_weights,
+    make_weighted_sampler,
+)
 from src.datasets.transforms import build_eval_transform, build_train_transform
 
 
@@ -55,9 +59,26 @@ def build_dataloaders(cfg: dict):
 
     sampler = None
     shuffle = True
-    if cfg["training"].get("balance_strategy") == "weighted_sampler":
-        labels = train_df["label_id"].astype(int).tolist()
+    labels = train_df["label_id"].astype(int).tolist()
+    balance_strategy = cfg["training"].get("balance_strategy")
+    if balance_strategy == "weighted_sampler":
         sampler = make_weighted_sampler(labels, num_classes)
+        shuffle = False
+    elif balance_strategy == "class_aware_sampler":
+        hard_classes = cfg["training"].get("hard_classes", [])
+        hard_label_ids = {
+            class_names.index(label)
+            for label in hard_classes
+            if label in class_names
+        }
+        if not hard_label_ids:
+            raise ValueError("class_aware_sampler requires training.hard_classes.")
+        sampler = make_class_aware_sampler(
+            labels,
+            num_classes,
+            hard_label_ids,
+            float(cfg["training"].get("hard_class_multiplier", 1.5)),
+        )
         shuffle = False
 
     loaders = {

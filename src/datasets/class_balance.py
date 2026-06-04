@@ -21,3 +21,21 @@ def make_weighted_sampler(labels: list[int], num_classes: int) -> WeightedRandom
         replacement=True,
     )
 
+
+def make_class_aware_sampler(
+    labels: list[int],
+    num_classes: int,
+    hard_label_ids: set[int],
+    hard_multiplier: float,
+) -> WeightedRandomSampler:
+    class_weights = make_class_weights(labels, num_classes).numpy()
+    multiplier = max(1.0, float(hard_multiplier))
+    sample_weights = [
+        class_weights[label] * (multiplier if label in hard_label_ids else 1.0)
+        for label in labels
+    ]
+    return WeightedRandomSampler(
+        weights=torch.tensor(sample_weights, dtype=torch.double),
+        num_samples=len(sample_weights),
+        replacement=True,
+    )

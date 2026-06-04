@@ -61,12 +61,12 @@ echo "[3/8] 生成数据集统计报告"
 
 batch_size_for_model() {
   case "$1" in
-    convnext_base) echo "${BATCH_SIZE_CONVNEXT_BASE:-16}" ;;
-    swin_b) echo "${BATCH_SIZE_SWIN_B:-16}" ;;
-    swin_s) echo "${BATCH_SIZE_SWIN_S:-16}" ;;
-    convnext_tiny) echo "${BATCH_SIZE_CONVNEXT_TINY:-32}" ;;
-    mobilenet_v3_small) echo "${BATCH_SIZE_MOBILENET_V3_SMALL:-64}" ;;
-    *) echo "${BATCH_SIZE:-32}" ;;
+    convnext_base) echo "${BATCH_SIZE_CONVNEXT_BASE:-8}" ;;
+    swin_b) echo "${BATCH_SIZE_SWIN_B:-8}" ;;
+    swin_s) echo "${BATCH_SIZE_SWIN_S:-8}" ;;
+    convnext_tiny) echo "${BATCH_SIZE_CONVNEXT_TINY:-16}" ;;
+    mobilenet_v3_small) echo "${BATCH_SIZE_MOBILENET_V3_SMALL:-32}" ;;
+    *) echo "${BATCH_SIZE:-16}" ;;
   esac
 }
 
