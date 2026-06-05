@@ -25,6 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--image-size", type=int, default=None)
+    parser.add_argument("--manifest", default=None, help="Override paths.manifest for this run.")
     parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--device", default=None)
     parser.add_argument("--run-name", default=None, help="Optional run id used for logs/checkpoints.")
@@ -73,6 +74,8 @@ def main() -> None:
         cfg["training"]["batch_size"] = args.batch_size
     if args.image_size:
         cfg["data"]["image_size"] = args.image_size
+    if args.manifest:
+        cfg["paths"]["manifest"] = args.manifest
     if args.learning_rate:
         cfg["training"]["learning_rate"] = args.learning_rate
     if args.run_name:

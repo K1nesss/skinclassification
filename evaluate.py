@@ -24,6 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--device", default=None)
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--image-size", type=int, default=None)
+    parser.add_argument("--manifest", default=None, help="Override paths.manifest for this evaluation.")
     return parser.parse_args()
 
 
@@ -35,6 +36,8 @@ def main() -> None:
         cfg["training"]["batch_size"] = args.batch_size
     if args.image_size:
         cfg["data"]["image_size"] = args.image_size
+    if args.manifest:
+        cfg["paths"]["manifest"] = args.manifest
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     print_section("评估配置")
     print(f"配置文件：{args.config}")
