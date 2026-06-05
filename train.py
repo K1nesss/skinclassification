@@ -57,6 +57,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--label-smoothing", type=float, default=None)
     parser.add_argument("--focal-gamma", type=float, default=None)
     parser.add_argument("--hard-class-multiplier", type=float, default=None)
+    parser.add_argument("--early-stopping-patience", type=int, default=None)
     return parser.parse_args()
 
 
@@ -96,6 +97,8 @@ def main() -> None:
         cfg["training"]["focal_gamma"] = args.focal_gamma
     if args.hard_class_multiplier is not None:
         cfg["training"]["hard_class_multiplier"] = args.hard_class_multiplier
+    if args.early_stopping_patience is not None:
+        cfg["training"]["early_stopping_patience"] = args.early_stopping_patience
 
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     print_section("训练配置")
