@@ -31,6 +31,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--checkpoints", nargs="+", required=True)
     parser.add_argument("--split", default="test", choices=["train", "val", "test"])
     parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--image-size", type=int, default=None)
+    parser.add_argument("--manifest", default=None, help="Override paths.manifest for this evaluation.")
     parser.add_argument("--device", default=None)
     parser.add_argument("--weights", nargs="+", type=float, default=None)
     parser.add_argument("--search-on-val", action="store_true")
@@ -143,6 +145,10 @@ def main() -> None:
     ensure_project_dirs(cfg)
     if args.batch_size:
         cfg["training"]["batch_size"] = args.batch_size
+    if args.image_size:
+        cfg["data"]["image_size"] = args.image_size
+    if args.manifest:
+        cfg["paths"]["manifest"] = args.manifest
     class_names = cfg["project"]["class_names"]
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
 
