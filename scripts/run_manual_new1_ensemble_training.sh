@@ -162,23 +162,102 @@ train_swin_b8acc4_wait() {
   done
 }
 
-run_eval() {
+run_eval_once() {
   local run_name="$1"
   local manifest="$2"
+  local batch_size="$3"
   local ckpt
   ckpt="$(checkpoint_path "$run_name")"
   if [[ ! -f "$ckpt" ]]; then
     echo "Missing checkpoint for eval: $ckpt" >&2
     return 1
   fi
+  local log_file="${LOG_ROOT}/${run_name}_test_eval_b${batch_size}.log"
+  set +e
   CUDA_VISIBLE_DEVICES="$GPU_INDEX" "$PYTHON_BIN" evaluate.py \
     --config config.yaml \
     --manifest "$manifest" \
     --checkpoint "$ckpt" \
     --split test \
-    --batch-size 32 \
+    --batch-size "$batch_size" \
     --image-size "$IMAGE_SIZE" \
-    2>&1 | tee "${LOG_ROOT}/${run_name}_test_eval.log"
+    2>&1 | tee "$log_file"
+  local status=${PIPESTATUS[0]}
+  if [[ "$status" -eq 0 ]]; then
+    return 0
+  fi
+  if grep -qE "OutOfMemory|CUDA out of memory" "$log_file"; then
+    echo "OOM while evaluating $run_name with batch_size=$batch_size"
+    return 99
+  fi
+  return "$status"
+}
+
+run_eval() {
+  local run_name="$1"
+  local manifest="$2"
+  local batch_size status
+  for batch_size in 32 16 8; do
+    set +e
+    run_eval_once "$run_name" "$manifest" "$batch_size"
+    status=$?
+    set -e
+    if [[ "$status" -eq 0 ]]; then
+      return 0
+    fi
+    if [[ "$status" -ne 99 ]]; then
+      return 1
+    fi
+  done
+  echo "All eval fallback batches OOM for ${run_name}; waiting before retry."
+  wait_for_gpu0 4096 20
+  run_eval "$run_name" "$manifest"
+}
+
+run_ensemble_once() {
+  local batch_size="$1"
+  shift
+  local log_file="${LOG_ROOT}/ensemble_manual_new1_full_plus_strict5_test_metrics_b${batch_size}.log"
+  set +e
+  CUDA_VISIBLE_DEVICES="$GPU_INDEX" "$PYTHON_BIN" scripts/evaluate_ensemble.py \
+    --config config.yaml \
+    --manifest "$STRICT_MANIFEST" \
+    --image-size "$IMAGE_SIZE" \
+    --batch-size "$batch_size" \
+    --split test \
+    --search-on-val \
+    --weight-step 0.05 \
+    --output-name ensemble_manual_new1_full_plus_strict5_test_metrics \
+    --checkpoints "$@" \
+    2>&1 | tee "$log_file"
+  local status=${PIPESTATUS[0]}
+  if [[ "$status" -eq 0 ]]; then
+    return 0
+  fi
+  if grep -qE "OutOfMemory|CUDA out of memory" "$log_file"; then
+    echo "OOM while evaluating ensemble with batch_size=$batch_size"
+    return 99
+  fi
+  return "$status"
+}
+
+run_ensemble() {
+  local batch_size status
+  for batch_size in 32 16 8; do
+    set +e
+    run_ensemble_once "$batch_size" "$@"
+    status=$?
+    set -e
+    if [[ "$status" -eq 0 ]]; then
+      return 0
+    fi
+    if [[ "$status" -ne 99 ]]; then
+      return 1
+    fi
+  done
+  echo "All ensemble fallback batches OOM; waiting before retry."
+  wait_for_gpu0 4096 20
+  run_ensemble "$@"
 }
 
 echo "Manual new_1 five-model training started at $(date -Is)"
@@ -224,21 +303,11 @@ run_eval "$CONVNEXT_STRICT_TARGET" "$STRICT_MANIFEST"
 run_eval "$SWIN_STRICT" "$STRICT_MANIFEST"
 
 echo "Start five-model ensemble evaluation"
-CUDA_VISIBLE_DEVICES="$GPU_INDEX" "$PYTHON_BIN" scripts/evaluate_ensemble.py \
-  --config config.yaml \
-  --manifest "$STRICT_MANIFEST" \
-  --image-size "$IMAGE_SIZE" \
-  --batch-size 32 \
-  --split test \
-  --search-on-val \
-  --weight-step 0.05 \
-  --output-name ensemble_manual_new1_full_plus_strict5_test_metrics \
-  --checkpoints \
-    "$(checkpoint_path "$CONVNEXT_FULL")" \
-    "$(checkpoint_path "$SWIN_FULL")" \
-    "$(checkpoint_path "$CONVNEXT_STRICT")" \
-    "$(checkpoint_path "$CONVNEXT_STRICT_TARGET")" \
-    "$(checkpoint_path "$SWIN_STRICT")" \
-  2>&1 | tee "${LOG_ROOT}/ensemble_manual_new1_full_plus_strict5_test_metrics.log"
+run_ensemble \
+  "$(checkpoint_path "$CONVNEXT_FULL")" \
+  "$(checkpoint_path "$SWIN_FULL")" \
+  "$(checkpoint_path "$CONVNEXT_STRICT")" \
+  "$(checkpoint_path "$CONVNEXT_STRICT_TARGET")" \
+  "$(checkpoint_path "$SWIN_STRICT")"
 
 echo "Manual new_1 five-model training and evaluation finished at $(date -Is)"
