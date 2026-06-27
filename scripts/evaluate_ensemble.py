@@ -37,12 +37,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weights", nargs="+", type=float, default=None)
     parser.add_argument("--search-on-val", action="store_true")
     parser.add_argument("--weight-step", type=float, default=0.05)
+    parser.add_argument(
+        "--tta-hflip",
+        action="store_true",
+        help="Average predictions from the original image and a horizontal flip.",
+    )
     parser.add_argument("--output-name", default=None)
     return parser.parse_args()
 
 
 @torch.no_grad()
-def collect_probs(checkpoint: str, cfg: dict, split: str, device: torch.device):
+def collect_probs(checkpoint: str, cfg: dict, split: str, device: torch.device, tta_hflip: bool = False):
     loader = build_eval_loader(cfg, split)
     model = load_checkpoint_model(checkpoint, int(cfg["project"]["num_classes"]), device)
     y_true: list[int] = []
@@ -51,7 +56,11 @@ def collect_probs(checkpoint: str, cfg: dict, split: str, device: torch.device):
     n_images = 0
     for images, labels, _ in tqdm(loader, desc=f"Predicting {Path(checkpoint).stem} {split}"):
         images = images.to(device, non_blocking=True)
-        batch_probs = torch.softmax(model(images), dim=1).cpu().numpy()
+        probs = torch.softmax(model(images), dim=1)
+        if tta_hflip:
+            flip_probs = torch.softmax(model(torch.flip(images, dims=[3])), dim=1)
+            probs = (probs + flip_probs) * 0.5
+        batch_probs = probs.cpu().numpy()
         probs.append(batch_probs)
         y_true.extend(labels.numpy().astype(int).tolist())
         n_images += images.size(0)
@@ -157,7 +166,7 @@ def main() -> None:
         val_probs = []
         val_true_ref = None
         for checkpoint in checkpoints:
-            y_true, probs, _ = collect_probs(checkpoint, cfg, "val", device)
+            y_true, probs, _ = collect_probs(checkpoint, cfg, "val", device, bool(args.tta_hflip))
             if val_true_ref is None:
                 val_true_ref = y_true
             elif not np.array_equal(val_true_ref, y_true):
@@ -183,7 +192,7 @@ def main() -> None:
     true_ref = None
     seconds_per_image = 0.0
     for checkpoint in checkpoints:
-        y_true, probs, seconds = collect_probs(checkpoint, cfg, args.split, device)
+        y_true, probs, seconds = collect_probs(checkpoint, cfg, args.split, device, bool(args.tta_hflip))
         if true_ref is None:
             true_ref = y_true
         elif not np.array_equal(true_ref, y_true):
@@ -199,6 +208,7 @@ def main() -> None:
         "weights": weights.tolist(),
         "search_on_val": bool(args.search_on_val),
         "weight_step": float(args.weight_step),
+        "tta_hflip": bool(args.tta_hflip),
     }
 
     output_name = args.output_name or f"ensemble_{args.split}_metrics"
