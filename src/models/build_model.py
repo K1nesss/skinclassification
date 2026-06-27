@@ -7,6 +7,26 @@ import torch.nn as nn
 from torchvision import models
 
 
+TORCHVISION_MODELS = {
+    "resnet18",
+    "densenet121",
+    "efficientnet_b0",
+    "mobilenet_v3_small",
+    "convnext_tiny",
+    "convnext_base",
+    "swin_s",
+    "swin_b",
+}
+
+
+def _is_timm_model(model_name: str) -> bool:
+    return model_name.startswith("timm:")
+
+
+def _timm_model_name(model_name: str) -> str:
+    return model_name.removeprefix("timm:")
+
+
 def _weights(model_name: str, pretrained: bool):
     if not pretrained:
         return None
@@ -25,6 +45,22 @@ def _weights(model_name: str, pretrained: bool):
 
 def build_model(model_name: str, num_classes: int, pretrained: bool = True) -> nn.Module:
     model_name = model_name.lower()
+    if _is_timm_model(model_name):
+        try:
+            import timm
+        except ImportError as exc:
+            raise ImportError(
+                "Model names prefixed with 'timm:' require the timm package. "
+                "Install project requirements or run: pip install timm"
+            ) from exc
+        model = timm.create_model(
+            _timm_model_name(model_name),
+            pretrained=pretrained,
+            num_classes=num_classes,
+        )
+        model.model_name = model_name
+        return model
+
     try:
         weights = _weights(model_name, pretrained)
         model = getattr(models, model_name)(weights=weights)
@@ -96,6 +132,14 @@ def load_checkpoint_model(
 
 def get_target_layer(model: nn.Module) -> nn.Module:
     name = getattr(model, "model_name", model.__class__.__name__.lower())
+    if _is_timm_model(name):
+        if hasattr(model, "stages"):
+            return model.stages[-1]
+        if hasattr(model, "blocks"):
+            return model.blocks[-1]
+        if hasattr(model, "layers"):
+            return model.layers[-1]
+        raise ValueError(f"No Grad-CAM target layer configured for {name}")
     if name.startswith("resnet"):
         return model.layer4[-1]
     if name.startswith("densenet"):

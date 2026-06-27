@@ -1,5 +1,6 @@
 torch
 torchvision
+timm
 numpy
 pandas
 Pillow
@@ -10,4 +11,3 @@ seaborn
 PyYAML
 tqdm
 streamlit
-
