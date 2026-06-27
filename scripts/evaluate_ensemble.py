@@ -51,24 +51,24 @@ def collect_probs(checkpoint: str, cfg: dict, split: str, device: torch.device, 
     loader = build_eval_loader(cfg, split)
     model = load_checkpoint_model(checkpoint, int(cfg["project"]["num_classes"]), device)
     y_true: list[int] = []
-    probs: list[np.ndarray] = []
+    all_probs: list[np.ndarray] = []
     start = time.perf_counter()
     n_images = 0
     for images, labels, _ in tqdm(loader, desc=f"Predicting {Path(checkpoint).stem} {split}"):
         images = images.to(device, non_blocking=True)
-        probs = torch.softmax(model(images), dim=1)
+        batch_tensor_probs = torch.softmax(model(images), dim=1)
         if tta_hflip:
             flip_probs = torch.softmax(model(torch.flip(images, dims=[3])), dim=1)
-            probs = (probs + flip_probs) * 0.5
-        batch_probs = probs.cpu().numpy()
-        probs.append(batch_probs)
+            batch_tensor_probs = (batch_tensor_probs + flip_probs) * 0.5
+        batch_probs = batch_tensor_probs.cpu().numpy()
+        all_probs.append(batch_probs)
         y_true.extend(labels.numpy().astype(int).tolist())
         n_images += images.size(0)
     seconds_per_image = (time.perf_counter() - start) / max(1, n_images)
     del model
     if device.type == "cuda":
         torch.cuda.empty_cache()
-    return np.asarray(y_true, dtype=np.int64), np.vstack(probs), seconds_per_image
+    return np.asarray(y_true, dtype=np.int64), np.vstack(all_probs), seconds_per_image
 
 
 def normalize_weights(weights: list[float]) -> np.ndarray:
