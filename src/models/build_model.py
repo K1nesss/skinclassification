@@ -24,7 +24,7 @@ def _is_timm_model(model_name: str) -> bool:
 
 
 def _timm_model_name(model_name: str) -> str:
-    return model_name.removeprefix("timm:")
+    return model_name[len("timm:") :]
 
 
 def _weights(model_name: str, pretrained: bool):
