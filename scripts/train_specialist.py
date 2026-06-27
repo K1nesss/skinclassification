@@ -47,6 +47,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--epochs", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--image-size", type=int, default=None)
+    parser.add_argument("--manifest", default=None, help="Override paths.manifest for this run.")
+    parser.add_argument("--learning-rate", type=float, default=None)
     parser.add_argument("--device", default=None)
     parser.add_argument(
         "--balance-strategy",
@@ -58,6 +61,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--loss-type", choices=["cross_entropy", "focal"], default=None)
     parser.add_argument("--label-smoothing", type=float, default=None)
     parser.add_argument("--focal-gamma", type=float, default=None)
+    parser.add_argument("--grad-accum-steps", type=int, default=None)
+    parser.add_argument("--early-stopping-patience", type=int, default=None)
     return parser.parse_args()
 
 
@@ -151,6 +156,12 @@ def main() -> None:
     cfg["training"]["model"] = args.model
     cfg["training"]["run_name"] = args.run_name or f"{args.model}_specialist"
     cfg["training"]["balance_strategy"] = args.balance_strategy
+    if args.manifest:
+        cfg["paths"]["manifest"] = args.manifest
+    if args.image_size:
+        cfg["data"]["image_size"] = args.image_size
+    if args.learning_rate:
+        cfg["training"]["learning_rate"] = args.learning_rate
     if args.loss_type:
         cfg["training"]["loss_type"] = args.loss_type
     if args.label_smoothing is not None:
@@ -161,6 +172,10 @@ def main() -> None:
         cfg["training"]["epochs"] = args.epochs
     if args.batch_size:
         cfg["training"]["batch_size"] = args.batch_size
+    if args.grad_accum_steps:
+        cfg["training"]["gradient_accumulation_steps"] = args.grad_accum_steps
+    if args.early_stopping_patience is not None:
+        cfg["training"]["early_stopping_patience"] = args.early_stopping_patience
 
     device = torch.device(args.device or ("cuda" if torch.cuda.is_available() else "cpu"))
     print("\n" + "=" * 80)
@@ -177,6 +192,9 @@ def main() -> None:
         print(f"CUDA 显卡：{torch.cuda.get_device_name(device)}")
     print(f"训练轮数：{cfg['training']['epochs']}")
     print(f"批大小：{cfg['training']['batch_size']}")
+    print(f"输入尺寸：{cfg['data']['image_size']}")
+    print(f"学习率：{cfg['training']['learning_rate']}")
+    print(f"样本清单：{Path(cfg['paths']['manifest']).resolve()}")
     print(f"类别平衡策略：{args.balance_strategy}")
     print(f"损失函数：{cfg['training'].get('loss_type', 'cross_entropy')}")
     print(f"label smoothing：{cfg['training'].get('label_smoothing', 0.0)}")
